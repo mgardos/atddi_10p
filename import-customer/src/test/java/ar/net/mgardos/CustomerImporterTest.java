@@ -14,48 +14,28 @@ import javax.persistence.criteria.CriteriaBuilder;
 import javax.persistence.criteria.CriteriaQuery;
 import javax.persistence.criteria.Predicate;
 import javax.persistence.criteria.Root;
-import java.io.FileReader;
-import java.io.IOException;
-import java.io.LineNumberReader;
+import java.io.*;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class ImportCustomerTest {
+public class CustomerImporterTest {
+    private final CustomerImporter customerImporter = new CustomerImporter();
     private Session session;
 
-    public void importCustomers() throws IOException {
-        FileReader reader = new FileReader("src/main/resources/input.txt");
-        LineNumberReader lineReader = new LineNumberReader(reader);
+    private Reader loadDataFromFile(String fileName) throws FileNotFoundException {
+        return new FileReader(fileName);
+    }
 
-        Customer newCustomer = null;
-        String line = lineReader.readLine();
-        while (line!=null) {
-            if (line.startsWith("C")){
-                String[] customerData = line.split(",");
-                newCustomer = new Customer();
-                newCustomer.setFirstName(customerData[1]);
-                newCustomer.setLastName(customerData[2]);
-                newCustomer.setIdentificationType(customerData[3]);
-                newCustomer.setIdentificationNumber(customerData[4]);
-                session.persist(newCustomer);
-            }
-            else if (line.startsWith("A")) {
-                String[] addressData = line.split(",");
-                Address newAddress = new Address();
+    private Reader loadDataFromStream() {
+        StringBuilder streamBuilder = new StringBuilder();
+        streamBuilder.append("C,Pepe,Sanchez,D,22333444\n");
+        streamBuilder.append("A,San Martin,3322,Olivos,1636,BsAs\n");
+        streamBuilder.append("A,Maipu,888,Florida,1122,Buenos Aires\n");
+        streamBuilder.append("C,Juan,Perez,C,23-25666777-9\n");
+        streamBuilder.append("A,Alem,1122,CABA,1001,CABA\n");
 
-                newCustomer.addAddress(newAddress);
-                newAddress.setStreetName(addressData[1]);
-                newAddress.setStreetNumber(Integer.parseInt(addressData[2]));
-                newAddress.setTown(addressData[3]);
-                newAddress.setZipCode(Integer.parseInt(addressData[4]));
-                newAddress.setProvince(addressData[5]);
-            }
-
-            line = lineReader.readLine();
-        }
-
-        reader.close();
+        return new StringReader(streamBuilder.toString());
     }
 
     @After
@@ -78,24 +58,48 @@ public class ImportCustomerTest {
     }
 
     @Test
-    public void test_CustomersLoadedInDatabase() throws Exception {
-        importCustomers();
+    public void test_readCustomersFromFileLoadIntoDatabase() throws Exception {
+        customerImporter.importCustomers(session, loadDataFromFile("src/main/resources/input.txt"));
 
+        List<Customer> customers = loadCustomerIntoDatabase();
+
+        assertThat(customers).hasSize(2);
+    }
+
+    @Test
+    public void test_readCustomersFromStreamLoadIntoDatabase() throws Exception {
+        customerImporter.importCustomers(session, loadDataFromStream());
+
+        List<Customer> customers = loadCustomerIntoDatabase();
+
+        assertThat(customers).hasSize(2);
+    }
+
+    private List<Customer> loadCustomerIntoDatabase() {
         CriteriaBuilder cb = session.getCriteriaBuilder();
         CriteriaQuery<Customer> cr = cb.createQuery(Customer.class);
         Root<Customer> root = cr.from(Customer.class);
         cr.select(root);
 
         Query<Customer> query = session.createQuery(cr);
-        List<Customer> customers = query.getResultList();
-
-        assertThat(customers).hasSize(2);
+        return query.getResultList();
     }
 
     @Test
-    public void test_AddressesLoadedInDatabase() throws Exception {
-        importCustomers();
+    public void test_loadAddressesFromFileLoadIntoDatabase() throws Exception {
+        customerImporter.importCustomers(session, loadDataFromFile("src/main/resources/input.txt"));
 
+        assertAllAddressesLoadedIntoDatabase();
+    }
+
+    @Test
+    public void test_loadAddressesFromStreamLoadIntoDatabase() throws Exception {
+        customerImporter.importCustomers(session, loadDataFromStream());
+
+        assertAllAddressesLoadedIntoDatabase();
+    }
+
+    private void assertAllAddressesLoadedIntoDatabase() {
         CriteriaBuilder cb = session.getCriteriaBuilder();
         CriteriaQuery<Address> cr = cb.createQuery(Address.class);
         Root<Address> root = cr.from(Address.class);
@@ -109,7 +113,7 @@ public class ImportCustomerTest {
 
     @Test
     public void test_CustomerWithProperAddresses() throws Exception {
-        importCustomers();
+        customerImporter.importCustomers(session, loadDataFromFile("src/main/resources/input.txt"));
 
         CriteriaBuilder cb = session.getCriteriaBuilder();
         CriteriaQuery<Customer> cr = cb.createQuery(Customer.class);
