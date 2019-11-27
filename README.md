@@ -1,13 +1,18 @@
 # atddi_10p
 
-Referencias
+#### Referencias
 https://www.baeldung.com/hibernate-criteria-queries
 
-URL: http://tinyurl.com/TDDAvanzadoNov2019
-password: SuperTDDJP
+#### Acceso al material del curso
+* URL: http://tinyurl.com/TDDAvanzadoNov2019
+* Clave: SuperTDDJP
 
-Clave solucion 1: import1
-Clave solucion 2: solucion2
+#### Claves de soluciones
+* Clave solucion 1: import1
+* Clave solucion 2: solucion2
+* Clave solucion 3: 3pasos
+* Clave solucion 4: porfin
+* Clave solucion 5 (sin BD): final
 
 ## Import Customer
 ---------------
@@ -132,3 +137,68 @@ El test de unidad CustomerImporterTest tiene como miembro la Session de Hibernat
        
 Dado que la implementación de CustomerSystem a usar dependen del ambiente en cual se ejecutará el código, por ejemplo ambiente de desarrollo o de producción, se deberá disponer de otra abstracción para esto que también cambia, llamada Environment.
 
+### Dia 5
+
+Mover Session en CustomerImporterTest a una nueva clase, PersistentCustomerSystem. Utilizar refactor automatizado de IntelliJ: Refactor -> Extract -> Delegate... sobre Session selecionado. Definir los siguientes datos para completar el refactor:
+* Name of the new class: PersistentCustomerSystem
+* Target destination directory: ...\src\main\java\ar\net\mgardos
+* Members to extract: debe estar seleccionada la variable session
+* Visibility: Private
+* Generate accessors: debe estar tildado
+
+Mover la configuracion de Hibernate y creación de session en metodo setUp del test de unidad a PersistentCustomerSystem:
+
+```java
+@Before
+public void setUp() {
+    Configuration configuration = new Configuration();
+    configuration.addAnnotatedClass(Customer.class);
+    configuration.addAnnotatedClass(Address.class);
+    configuration.configure();
+
+    ServiceRegistry serviceRegistry = new StandardServiceRegistryBuilder().applySettings(configuration.getProperties()).build();
+    SessionFactory sessionFactory = configuration.buildSessionFactory(serviceRegistry);
+    persistentCustomerSystem.setSession(sessionFactory.openSession());
+    persistentCustomerSystem.getSession().beginTransaction();
+}
+```
+
+Seleccionar todas excepto la ultima linea de código del método setUp y emplear Refactor -> Extract -> Method... creando el nuevo método initialize. Luego seleccionar la variable persistentCustomerSystem dentro del método initialize y emplear Refactor -> Extract -> Parameter.... Para mover el método initialize a PersistentCustomerSystem, seleccionar el nombre del método y aplicar Refactor -> Move Instance Method... y de las opciones dentro del marco Select an instance expression elegir PersistentCustomerSystem persistentCustomerSystem identificado con el ícono que incluye la letra P y seleccionar Visibility Public.
+
+Realizar el procedimiento anterior con la última línea de código que inicia una transacción, generando finalmente el método start en PersistentCustomerSystem.
+
+El código resultante en el test de unidad será el siguiente:
+
+```java
+@Before
+public void setUp() {
+    persistentCustomerSystem.initialize();
+    persistentCustomerSystem.start();
+}
+```
+
+Respecto a método tearDown en el test de unidad, es necesario seguir el mismo procedimiento que para refactorizar en forma automatica el método setUp:
+
+```java
+@After
+public void tearDown() {
+    persistentCustomerSystem.getSession().getTransaction().commit();
+    persistentCustomerSystem.getSession().close();
+}
+```
+
+Luego continuear refactorizando en forma automatica para mover del test de unidad a PersistentCustomerSystem todo código destinado a acceso a base de datos.
+
+Nuevo requerimiento a implementar con TDD
+-----------------------------------------
+
+El sistema ahora pasa a ser ERP, no solo importador de clientes. Se recibiran registros para proveedor o Supplier que tendrá asociados uno o mas clientes. El cliente se identifica en el registro con códigos NC (New Customer) y EC (Existing Customer).
+
+Registro de ejemplo de proveedor:
+```
+S,Supplier1,D,123
+NC,Pepe,Sanchez,D,123456789
+EC,D,987654321
+```
+
+Surge la necesidad de disponer del ERPSystem que se encarga de administrar la Session y conoce al CustomerSystem y SupplierSystem. Este nuevo sistema, ERPSystem, pasa a ser la raíz de los diversos sub-sistemas y cuando se requiere algún sub-sistema, se le debe solicitar a ERPSystem. 
