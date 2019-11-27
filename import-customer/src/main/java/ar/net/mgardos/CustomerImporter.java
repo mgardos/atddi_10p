@@ -10,16 +10,18 @@ public class CustomerImporter {
     private Customer newCustomer;
     private String record;
     private LineNumberReader lineReader;
+    private PersistentCustomerSystem persistentCustomerSystem;
 
     public CustomerImporter() {
     }
 
-    public void importCustomers(Session session, Reader reader) throws IOException {
+    public void importCustomers(Reader reader, PersistentCustomerSystem persistentCustomerSystem) throws IOException {
         lineReader = new LineNumberReader(reader);
         nextRecord();
 
         while (hasRecord()) {
-            createCustomer(session);
+            this.persistentCustomerSystem = persistentCustomerSystem;
+            createCustomer();
             nextRecord();
         }
 
@@ -34,7 +36,7 @@ public class CustomerImporter {
         return record != null;
     }
 
-    private void createCustomer(Session session) {
+    private void createCustomer() {
         if (record.startsWith("C")) {
             String[] customerData = parseRecord();
             newCustomer = new Customer();
@@ -42,7 +44,8 @@ public class CustomerImporter {
             newCustomer.setLastName(customerData[2]);
             newCustomer.setIdentificationType(customerData[3]);
             newCustomer.setIdentificationNumber(customerData[4]);
-            session.persist(newCustomer);
+
+            persistentCustomerSystem.add(newCustomer);
         } else if (record.startsWith("A")) {
             String[] addressData = parseRecord();
             Address newAddress = new Address();
